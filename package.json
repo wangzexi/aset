@@ -1,0 +1,16 @@
+{
+  "name": "investment-manager",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch server/server.ts",
+    "start": "bun server/server.ts",
+    "typecheck": "bunx tsc --noEmit",
+    "build:web": "bun run --cwd web build",
+    "dev:web": "bun run --cwd web dev"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "latest"
+  }
+}

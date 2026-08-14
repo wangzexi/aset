@@ -1,0 +1,37 @@
+{
+  "positions": [
+    {
+      "code": "000218",
+      "name": "华安黄金易ETF联接A",
+      "channel": "支付宝",
+      "type": "fund",
+      "shares": 21000,
+      "underlying": {
+        "target": "518880",
+        "sector": "黄金/贵金属",
+        "assetClass": "commodity"
+      }
+    },
+    {
+      "code": "513130",
+      "name": "恒生科技ETF",
+      "channel": "支付宝",
+      "type": "etf",
+      "shares": 20000
+    },
+    {
+      "code": "513100",
+      "name": "纳斯达克100ETF",
+      "channel": "支付宝",
+      "type": "etf",
+      "shares": 3000
+    },
+    {
+      "code": "510300",
+      "name": "沪深300ETF",
+      "channel": "支付宝",
+      "type": "etf",
+      "shares": 5000
+    }
+  ]
+}
