@@ -1,37 +1,175 @@
 {
   "positions": [
     {
-      "code": "000218",
-      "name": "华安黄金易ETF联接A",
+      "code": "020341",
       "channel": "支付宝",
       "type": "fund",
-      "shares": 21000,
-      "underlying": {
-        "target": "518880",
-        "sector": "黄金/贵金属",
-        "assetClass": "commodity"
-      }
+      "shares": 73600,
+      "assetClass": "gold"
     },
     {
       "code": "513130",
-      "name": "恒生科技ETF",
-      "channel": "支付宝",
+      "channel": "同花顺",
       "type": "etf",
-      "shares": 20000
+      "shares": 426000,
+      "holdings": [
+        {
+          "code": "09999",
+          "weight": 8.31
+        },
+        {
+          "code": "00700",
+          "weight": 8.11
+        },
+        {
+          "code": "01810",
+          "weight": 8.09
+        },
+        {
+          "code": "01211",
+          "weight": 7.96
+        },
+        {
+          "code": "09988",
+          "weight": 7.94
+        },
+        {
+          "code": "03690",
+          "weight": 7.8
+        },
+        {
+          "code": "00981",
+          "weight": 7.75
+        },
+        {
+          "code": "09618",
+          "weight": 5.09
+        },
+        {
+          "code": "09888",
+          "weight": 4.94
+        },
+        {
+          "code": "00992",
+          "weight": 4.71
+        },
+        {
+          "code": "01024",
+          "weight": 3.78
+        },
+        {
+          "code": "01347",
+          "weight": 3.08
+        },
+        {
+          "code": "09961",
+          "weight": 2.89
+        },
+        {
+          "code": "09868",
+          "weight": 2.84
+        },
+        {
+          "code": "02015",
+          "weight": 2.26
+        },
+        {
+          "code": "09660",
+          "weight": 1.67
+        },
+        {
+          "code": "00300",
+          "weight": 1.55
+        },
+        {
+          "code": "00020",
+          "weight": 1.52
+        },
+        {
+          "code": "02382",
+          "weight": 1.52
+        },
+        {
+          "code": "06690",
+          "weight": 1.41
+        },
+        {
+          "code": "09626",
+          "weight": 1.29
+        },
+        {
+          "code": "06618",
+          "weight": 1.15
+        },
+        {
+          "code": "09863",
+          "weight": 0.82
+        },
+        {
+          "code": "09866",
+          "weight": 0.75
+        },
+        {
+          "code": "02513",
+          "weight": 0.65
+        },
+        {
+          "code": "00241",
+          "weight": 0.64
+        },
+        {
+          "code": "00285",
+          "weight": 0.6
+        },
+        {
+          "code": "00780",
+          "weight": 0.56
+        },
+        {
+          "code": "00100",
+          "weight": 0.27
+        },
+        {
+          "code": "01698",
+          "weight": 0.06
+        }
+      ]
     },
     {
       "code": "513100",
-      "name": "纳斯达克100ETF",
-      "channel": "支付宝",
+      "channel": "同花顺",
       "type": "etf",
-      "shares": 3000
+      "shares": 110400
     },
     {
-      "code": "510300",
-      "name": "沪深300ETF",
+      "code": "005918",
+      "channel": "同花顺",
+      "type": "fund",
+      "shares": 52900,
+      "holdings": [
+        {
+          "code": "510300",
+          "weight": 95
+        },
+        {
+          "assetClass": "cash",
+          "weight": 5
+        }
+      ]
+    },
+    {
+      "code": "019396",
       "channel": "支付宝",
-      "type": "etf",
-      "shares": 5000
+      "type": "fund",
+      "shares": 233807.47,
+      "assetClass": "bond"
+    },
+    {
+      "code": "BTC",
+      "channel": "币安",
+      "type": "crypto",
+      "shares": 0.03359825,
+      "assetClass": "crypto"
     }
   ]
 }

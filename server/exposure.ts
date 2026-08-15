@@ -1,5 +1,5 @@
 import { marketValue } from "./types";
-import type { PenetrationHolding, Position } from "./types";
+import type { Holding, Position } from "./types";
 
 export type Exposure = {
   code: string;
@@ -13,49 +13,91 @@ export type Exposure = {
   sources: string[];
 };
 
-export function calculateExposure(positions: Position[]): { exposures: Exposure[]; unresolved: Position[] } {
+const className: Record<Exposure["assetClass"], string> = {
+  stock: "股票",
+  cash: "现金",
+  bond: "债券",
+  gold: "黄金",
+  crypto: "加密货币",
+};
+
+/** 叶子分类：显式 assetClass → 名称推断 → position 兜底 → 股票 */
+function classify(node: Holding, fallback?: Position["assetClass"]): Exposure["assetClass"] {
+  if (node.assetClass === "cash" || node.assetClass === "bond" || node.assetClass === "gold" || node.assetClass === "crypto") return node.assetClass;
+  const name = node.name ?? "";
+  if (node.code === "000759" || node.code === "CASH" || name.includes("货币") || name.includes("现金")) return "cash";
+  if (node.code === "019396" || name.includes("债券")) return "bond";
+  if (name.includes("黄金")) return "gold";
+  if (fallback === "cash" || fallback === "bond" || fallback === "gold" || fallback === "crypto") return fallback;
+  return "stock";
+}
+
+/** 没有显式配置时，position 整体归属的基础元素分类 */
+function fallbackClass(position: Position): Exposure["assetClass"] {
+  if (position.type === "cash" || position.code === "000759") return "cash";
+  if (position.assetClass === "bond" || position.assetClass === "gold" || position.assetClass === "cash" || position.assetClass === "crypto") return position.assetClass;
+  if (position.type === "crypto") return "crypto";
+  const name = position.name ?? "";
+  if (name.includes("黄金")) return "gold";
+  if (name.includes("债券")) return "bond";
+  if (name.includes("货币")) return "cash";
+  return "stock";
+}
+
+export function calculateExposure(positions: Position[]): { exposures: Exposure[] } {
   const total = positions.reduce((sum, item) => sum + marketValue(item), 0);
   const byCode = new Map<string, Exposure>();
-  const unresolved: Position[] = [];
-  for (const position of positions) {
-    const isCashFund = position.type === "fund" && (position.code === "000759" || position.name.includes("货币"));
-    const isCash = position.type === "cash";
-    const isBondFund = position.type === "fund" && (position.code === "019396" || position.name.includes("债券"));
-    const isGoldFund = position.type === "fund" && position.name.includes("黄金");
-    const isCrypto = position.type === "crypto";
-    const holdings = isCashFund || isCash
-      ? [{ code: "CASH", name: "现金", weight: 100, sector: "现金", assetClass: "cash" as const, dailyChange: position.dailyChange ?? 0 }]
-      : position.lookThrough?.length
-        ? position.lookThrough
-      : isCrypto
-        ? [{ code: position.code, name: position.name, weight: 100, sector: "加密货币", assetClass: "crypto" as const, dailyChange: position.dailyChange ?? 0 }]
-      : position.type === "stock"
-        ? [{ code: position.code, name: position.name, weight: 100, sector: "未分类" }]
-        : [{
-            code: position.code,
-            name: position.name,
-            weight: 100,
-            sector: isBondFund ? "债券" : isGoldFund ? "黄金" : "未穿透",
-            assetClass: isBondFund ? "bond" : isGoldFund ? "gold" : "stock",
-            dailyChange: position.dailyChange ?? 0,
-          }];
-    if (!holdings.length) { unresolved.push(position); continue; }
-    const weightTotal = holdings.reduce((sum, item) => sum + item.weight, 0) || 100;
-    for (const holding of holdings) {
-      const amount = marketValue(position) * holding.weight / weightTotal;
-      const dailyChange = holding.dailyChange ?? 0;
-      const todayPnl = amount * dailyChange / 100;
-      const existing = byCode.get(holding.code);
-      if (existing) {
-        existing.amount += amount;
-        existing.todayPnl += todayPnl;
-        existing.dailyChange = existing.amount ? existing.todayPnl / existing.amount * 100 : 0;
-        if (!existing.sources.includes(position.name)) existing.sources.push(position.name);
-      } else {
-        byCode.set(holding.code, { code: holding.code, name: holding.name, sector: holding.sector || "未分类", assetClass: holding.assetClass === "cash" ? "cash" : holding.assetClass === "commodity" ? "gold" : holding.assetClass === "crypto" ? "crypto" : holding.assetClass === "bond" ? "bond" : "stock", amount, portfolioWeight: total ? amount / total * 100 : 0, dailyChange, todayPnl, sources: [position.name] });
-      }
+
+  const addLeaf = (leaf: Holding, pathWeight: number, position: Position) => {
+    // pathWeight is already a fraction of the position (the root starts at 1),
+    // while leaf.weight is a percentage within its parent.
+    const amount = marketValue(position) * pathWeight * leaf.weight / 100;
+    if (amount <= 0) return;
+    const cls = classify(leaf, position.assetClass);
+    const code = leaf.code ?? (cls === "cash" ? "CASH" : cls === "gold" ? "GOLD" : cls === "bond" ? "BOND" : "CRYPTO");
+    const name = leaf.name ?? (cls === "cash" ? "现金" : className[cls]);
+    // 现金不涨跌；黄金等基础元素无行情时继承持仓本身的涨跌
+    const dailyChange = cls === "cash" ? 0 : leaf.dailyChange ?? position.dailyChange ?? 0;
+    const todayPnl = amount * dailyChange / 100;
+    const existing = byCode.get(code);
+    if (existing) {
+      existing.amount += amount;
+      existing.todayPnl += todayPnl;
+      existing.dailyChange = existing.amount ? existing.todayPnl / existing.amount * 100 : 0;
+      if (!existing.sources.includes(position.name ?? position.code)) existing.sources.push(position.name ?? position.code);
+    } else {
+      byCode.set(code, {
+        code,
+        name,
+        sector: leaf.sector || className[cls],
+        assetClass: cls,
+        amount,
+        portfolioWeight: total ? amount / total * 100 : 0,
+        dailyChange,
+        todayPnl,
+        sources: [position.name ?? position.code],
+      });
     }
+  };
+
+  const walk = (node: Holding, pathWeight: number, position: Position) => {
+    if (node.children?.length) node.children.forEach((child) => walk(child, pathWeight * node.weight / 100, position));
+    else addLeaf(node, pathWeight, position);
+  };
+
+  for (const position of positions) {
+    // 有穿透结果走树；没有则把整个持仓合成一个叶子（分类兜底）
+    const nodes = position.penetration?.holdings?.length
+      ? position.penetration.holdings
+      : [{
+          name: fallbackClass(position) === "cash" ? "现金" : position.name ?? position.code,
+          weight: 100,
+          assetClass: fallbackClass(position),
+          ...(fallbackClass(position) === "stock" ? { code: position.code } : {}),
+        } as Holding];
+    for (const node of nodes) walk(node, 1, position);
   }
+
   const exposures = [...byCode.values()].sort((a, b) => b.amount - a.amount).map((item) => ({ ...item, portfolioWeight: total ? item.amount / total * 100 : 0 }));
-  return { exposures, unresolved };
+  return { exposures };
 }

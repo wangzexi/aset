@@ -1,16 +1,17 @@
 {
-  "name": "investment-manager",
+  "name": "aset",
   "private": true,
   "type": "module",
+  "workspaces": ["server", "web"],
   "scripts": {
-    "dev": "bun --watch server/server.ts",
-    "start": "bun server/server.ts",
-    "typecheck": "bunx tsc --noEmit",
-    "build:web": "bun run --cwd web build",
-    "dev:web": "bun run --cwd web dev"
+    "dev": "concurrently -n api,web -c blue,green \"bun run --cwd server dev\" \"bun run --cwd web dev\"",
+    "start": "bun run --cwd server start",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p web",
+    "build": "bun run --cwd web build"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "concurrently": "latest",
     "typescript": "latest"
   }
 }

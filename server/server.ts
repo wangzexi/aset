@@ -1,5 +1,5 @@
 import { deletePosition, readPortfolio, upsertPosition, writePortfolio } from "./store";
-import { refreshLiveQuotes, refreshQuotes } from "./market-data";
+import { refreshQuotes } from "./market-data";
 import { calculateExposure } from "./exposure";
 import { marketValue } from "./types";
 import type { AssetType, Position } from "./types";
@@ -33,6 +33,13 @@ const server = Bun.serve({
       const portfolio = await readPortfolio();
       return json({ ...portfolio, summary: summary(portfolio.positions), ...calculateExposure(portfolio.positions) });
     }
+    // Static view of the config: no market data, no penetration. Returns in
+    // milliseconds so the UI can render every filter before quotes arrive.
+    if (url.pathname === "/api/portfolio/bootstrap" && request.method === "GET") {
+      const portfolio = await readPortfolio();
+      const positions = portfolio.positions.map((position) => ({ ...position, amount: 0, estimatedAmount: 0, todayPnl: 0, dailyChange: 0 }));
+      return json({ positions, summary: summary(positions), ...calculateExposure(positions) });
+    }
     if (url.pathname === "/api/portfolio/refresh" && request.method === "POST") {
       const portfolio = await readPortfolio();
       if (portfolio.lastDataSyncDate !== today()) {
@@ -44,7 +51,7 @@ const server = Bun.serve({
     }
     if (url.pathname === "/api/portfolio/live" && request.method === "POST") {
       const portfolio = await readPortfolio();
-      portfolio.positions = await refreshLiveQuotes(portfolio.positions);
+      portfolio.positions = await refreshQuotes(portfolio.positions);
       return json({ ...portfolio, summary: summary(portfolio.positions), ...calculateExposure(portfolio.positions) });
     }
     if (url.pathname === "/api/positions" && request.method === "POST") {
@@ -70,8 +77,12 @@ const server = Bun.serve({
     if (url.pathname.startsWith("/api/")) return json({ error: "Not found" }, 404);
     const file = url.pathname === "/" ? `${publicDir}/index.html` : `${publicDir}${url.pathname}`;
     const asset = Bun.file(file);
-    return (await asset.exists()) ? new Response(asset) : new Response("Not found", { status: 404 });
+    if (!(await asset.exists())) return new Response("Not found", { status: 404 });
+    // index.html must always revalidate so phones pick up new hashed bundles;
+    // hashed assets themselves can be cached for a long time by the browser.
+    const headers = url.pathname === "/" ? { "Cache-Control": "no-cache" } : { "Cache-Control": "public, max-age=31536000, immutable" };
+    return new Response(asset, { headers });
   },
 });
 
-console.log(`投资管理器运行在 http://localhost:${server.port}`);
+console.log(`Aset 运行在 http://localhost:${server.port}`);
