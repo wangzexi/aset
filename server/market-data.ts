@@ -13,6 +13,7 @@ const shanghaiDate = (date: Date) => new Intl.DateTimeFormat("en-CA", {
 }).format(date);
 const dateToday = () => shanghaiDate(new Date());
 const isWeekend = (date: Date) => [0, 6].includes(date.getDay());
+const isNonTradingDay = (date: Date) => isWeekend(date);
 
 type Market = "hk" | "sh" | "sz" | "us" | "unknown";
 
@@ -95,6 +96,20 @@ function markToMarket(position: Position, quote: Pick<Quote, "price" | "previous
     estimatedAmount: current,
     amount: current,
   };
+}
+
+/**
+ * 周末没有基金/股票/债券的新交易日收益。保留估值和穿透结构，
+ * 但把收益字段统一归零，避免图表继续显示上一个交易日的涨跌。
+ */
+function clearDailyMovement(penetration: Penetration): Penetration {
+  const clear = (node: Penetration["holdings"][number]): Penetration["holdings"][number] => ({
+    ...node,
+    dailyChange: 0,
+    contribution: 0,
+    ...(node.children?.length ? { children: node.children.map(clear) } : {}),
+  });
+  return { ...penetration, holdings: penetration.holdings.map(clear), estimatedChange: 0 };
 }
 
 async function fundNav(code: string): Promise<Quote | null> {
@@ -195,25 +210,29 @@ async function cryptoQuote(symbol: string): Promise<Quote | null> {
 }
 
 async function refreshFund(position: Position): Promise<Position> {
+  const nonTradingDay = isNonTradingDay(new Date());
   const nav = position.code === "000759" ? cashFundQuote(position.code) : position.type === "fund" ? await fundNav(position.code) : await stockQuote(position.code);
   // etf 的行情就是它自己的报价（nav 角色）
   const ownQuote = position.type === "etf" ? nav : null;
   const penetration = await dailyPenetration(position);
   const quotes = Object.fromEntries((await Promise.all(fetchCodes(penetration).map(async (code) => [code, await stockQuote(code)] as const))).filter((entry): entry is readonly [string, Quote] => Boolean(entry[1])).map(([code, quote]) => [code, { price: quote.price, dailyChange: quote.dailyChange, name: quote.name }]));
   const resolved = applyUnderlyingQuotes(penetration, quotes);
+  const effectivePenetration = nonTradingDay ? clearDailyMovement(resolved) : resolved;
   // 最新确认净值已经包含最近一个交易日的涨跌。只有在交易日且净值日期
   // 落后于今天时，才用底层资产的实时涨跌做今日估算，避免重复叠加一次跌幅。
   const estimateWithUnderlying = Boolean(
     nav?.asOfDate &&
     nav.asOfDate < dateToday() &&
-    !isWeekend(new Date()) &&
+    !nonTradingDay &&
     resolved.estimatedChange != null,
   );
   const estimatedPrice = estimateWithUnderlying && nav?.price != null && resolved.estimatedChange != null
     ? nav.price * (1 + resolved.estimatedChange / 100)
     : nav?.price;
-  const effectivePreviousPrice = estimateWithUnderlying ? nav?.price : nav?.previousPrice;
-  const effectiveDailyChange = estimateWithUnderlying ? resolved.estimatedChange : nav?.dailyChange;
+  const effectivePreviousPrice = nonTradingDay
+    ? nav?.price ?? ownQuote?.price ?? position.currentPrice
+    : estimateWithUnderlying ? nav?.price : nav?.previousPrice;
+  const effectiveDailyChange = nonTradingDay ? 0 : estimateWithUnderlying ? resolved.estimatedChange : nav?.dailyChange;
   const effectiveShares = calculateEffectiveShares(position, nav);
   const recurringPeriods = calculateRecurringPeriods(position, nav);
   const updated = {
@@ -224,7 +243,7 @@ async function refreshFund(position: Position): Promise<Position> {
     dailyChange: effectiveDailyChange ?? ownQuote?.dailyChange ?? position.dailyChange,
     ...(effectiveShares != null ? { effectiveShares } : {}),
     ...(recurringPeriods ? { recurringPeriods } : {}),
-    penetration: resolved,
+    penetration: effectivePenetration,
     updatedAt: new Date().toISOString(),
   };
   return markToMarket(updated, {
@@ -244,7 +263,9 @@ async function refreshPosition(position: Position): Promise<Position> {
   }
   if (position.type === "fund" || position.type === "etf") return await refreshFund(position);
   const quote = await stockQuote(position.type === "stock" && /^0\d{4}$/.test(position.code) ? `rt_hk${position.code}` : position.code);
-  return quote ? markToMarket(position, quote) : position;
+  if (!quote) return position;
+  if (isNonTradingDay(new Date())) return markToMarket(position, { ...quote, previousPrice: quote.price, dailyChange: 0 }, 0);
+  return markToMarket(position, quote);
 }
 
 export async function refreshQuotes(positions: Position[]): Promise<Position[]> {

@@ -55,7 +55,14 @@ export function calculateExposure(positions: Position[]): { exposures: Exposure[
     if (amount <= 0) return;
     const cls = classify(leaf, position.assetClass);
     const code = leaf.code ?? (cls === "cash" ? "CASH" : cls === "gold" ? "GOLD" : cls === "bond" ? "BOND" : "CRYPTO");
-    const name = leaf.name ?? (cls === "cash" ? "现金" : className[cls]);
+    const sourceName = position.name ?? position.code;
+    const configuredName = leaf.name ?? (cls === "cash" ? "现金" : className[cls]);
+    // Residual holdings are aggregates, not real securities. Make their owner
+    // explicit so the chart never presents an ambiguous standalone "other".
+    const isResidual = leaf.code?.startsWith("OTHER_") || /^(其余|其他)/.test(configuredName);
+    const name = isResidual && !configuredName.endsWith("的其他成分")
+      ? `${sourceName}的其他成分`
+      : configuredName;
     // 现金不涨跌；黄金等基础元素无行情时继承持仓本身的涨跌
     const dailyChange = cls === "cash" ? 0 : leaf.dailyChange ?? position.dailyChange ?? 0;
     const todayPnl = amount * dailyChange / 100;
@@ -64,7 +71,7 @@ export function calculateExposure(positions: Position[]): { exposures: Exposure[
       existing.amount += amount;
       existing.todayPnl += todayPnl;
       existing.dailyChange = existing.amount ? existing.todayPnl / existing.amount * 100 : 0;
-      if (!existing.sources.includes(position.name ?? position.code)) existing.sources.push(position.name ?? position.code);
+      if (!existing.sources.includes(sourceName)) existing.sources.push(sourceName);
     } else {
       byCode.set(code, {
         code,
@@ -75,7 +82,7 @@ export function calculateExposure(positions: Position[]): { exposures: Exposure[
         portfolioWeight: total ? amount / total * 100 : 0,
         dailyChange,
         todayPnl,
-        sources: [position.name ?? position.code],
+        sources: [sourceName],
       });
     }
   };

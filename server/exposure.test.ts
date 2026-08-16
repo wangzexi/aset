@@ -47,4 +47,23 @@ describe("calculateExposure", () => {
     expect(result[0]?.amount).toBeCloseTo(1000, 8);
     expect(result[0]?.portfolioWeight).toBeCloseTo(100, 8);
   });
+
+  test("qualifies residual holdings with their owning position", () => {
+    const result = calculateExposure([{
+      code: "ETF",
+      name: "测试科技 ETF",
+      type: "fund",
+      shares: 100,
+      estimatedAmount: 1000,
+      penetration: {
+        mode: "override",
+        source: "test",
+        totalWeight: 100,
+        holdings: [{ code: "OTHER_ETF", name: "其他成分", weight: 100, assetClass: "stock" }],
+      },
+    }]).exposures;
+
+    expect(result[0]?.name).toBe("测试科技 ETF的其他成分");
+    expect(result[0]?.sources).toEqual(["测试科技 ETF"]);
+  });
 });
